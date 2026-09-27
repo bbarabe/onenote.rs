@@ -314,6 +314,18 @@ fn parse_outline_item(
         PropertySetId::OutlineElementNode => {
             OutlineItem::Element(parse_outline_element(item_id, space, ctx)?)
         }
+        // Pages that went through OneNote 2007 can hold content directly in an outline, without an
+        // outline element around it. Wrap it in one instead of failing the whole page.
+        PropertySetId::RichTextNode
+        | PropertySetId::ImageNode
+        | PropertySetId::TableNode
+        | PropertySetId::EmbeddedFileNode => OutlineItem::Element(OutlineElement {
+            contents: vec![parse_content(item_id, space, ctx)?],
+            list_contents: vec![],
+            list_spacing: None,
+            child_level: 0,
+            children: vec![],
+        }),
         _ => {
             return Err(ErrorKind::MalformedOneNoteData(
                 format!("invalid outline item type: {:?}", id).into(),
