@@ -168,6 +168,14 @@ pub(crate) fn parse_page(
 
     let data = parse_data(manifest, page_space)?;
 
+    // OneNote's own title string for the page (what its page list shows). Pages that went through
+    // OneNote 2007 often have no title outline but still carry this.
+    let cached_title = [&metadata.cached_title, &data.cached_title]
+        .into_iter()
+        .flatten()
+        .find(|text| !text.trim().is_empty())
+        .cloned();
+
     let title = data
         .title
         .map(|id| parse_title(id, page_space, ctx))
@@ -219,13 +227,18 @@ pub(crate) fn parse_page(
     Ok(Page {
         link_target_id,
         title,
-        title_text: title_text.as_deref().map(remove_hyperlink).or_else(|| {
-            contents
-                .iter()
-                .filter_map(|page_content| page_content.outline())
-                .filter_map(outline_text)
-                .next()
-        }),
+        title_text: title_text
+            .as_deref()
+            .filter(|text| !text.trim().is_empty())
+            .map(remove_hyperlink)
+            .or(cached_title)
+            .or_else(|| {
+                contents
+                    .iter()
+                    .filter_map(|page_content| page_content.outline())
+                    .filter_map(outline_text)
+                    .next()
+            }),
         level,
         created_at,
         updated_at,
