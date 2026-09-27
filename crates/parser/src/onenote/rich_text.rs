@@ -469,6 +469,8 @@ pub(crate) fn parse_rich_text(
     let style_objects: Vec<_> = data
         .text_run_formatting
         .iter()
+        // a null reference: the run has no formatting of its own
+        .filter(|style_id| !style_id.is_nil())
         .filter_map(|style_id| {
             space.get_object(*style_id).or_else(|| {
                 warn!(ctx, "missing style for text run formatting: {:?}", style_id);
