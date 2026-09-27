@@ -8,6 +8,7 @@ use crate::onestore::fsshttpb::object_space::GroupData;
 use crate::onestore::shared::jcid::JcId;
 use crate::onestore::shared::object_prop_set::ObjectPropSet;
 use crate::reader::Reader;
+use crate::shared::guid::Guid;
 use std::rc::Rc;
 
 #[derive(Debug, Copy, Clone)]
@@ -94,11 +95,24 @@ impl<'a> Object {
             .into());
         }
 
-        let mapping_objects = props
+        // An all-zero CompactId is a null reference (for example an unset author). Null references
+        // can be left out of the object's reference list, and pairing both lists by position would
+        // then shift every later reference onto the wrong object. When the counts differ, map null
+        // ids to the nil ExGuid without consuming a reference.
+        let skip_null_ids = props.object_ids().len() != object_refs.len();
+        let mut remaining_refs = object_refs.iter().copied();
+        let mapping_objects: Vec<_> = props
             .object_ids()
             .iter()
             .copied()
-            .zip(object_refs.iter().copied());
+            .map_while(|cid| {
+                if skip_null_ids && cid.n == 0 && cid.guid_index == 0 {
+                    Some((cid, ExGuid::from_guid(Guid::nil(), 0)))
+                } else {
+                    remaining_refs.next().map(|id| (cid, id))
+                }
+            })
+            .collect();
 
         let mapping_contexts = props.context_ids().iter().copied().zip(context_refs);
 
@@ -109,7 +123,7 @@ impl<'a> Object {
             .zip(object_space_refs);
 
         let mapping = MappingTable::from_entries(
-            mapping_objects.chain(mapping_contexts),
+            mapping_objects.into_iter().chain(mapping_contexts),
             mapping_object_spaces,
         );
 
