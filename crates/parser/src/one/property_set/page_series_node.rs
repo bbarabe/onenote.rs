@@ -26,7 +26,11 @@ pub(crate) struct Data {
 pub(crate) fn parse(object: &Object) -> Result<Data> {
     assert_property_set(object, PropertySetId::PageSeriesNode)?;
 
-    let entity_guid = simple::parse_guid(PropertyType::NotebookManagementEntityGuid, object)?
+    // The entity GUID only identifies the series: a malformed one (seen: a value shorter than a
+    // GUID) is treated like a missing one instead of failing the whole section.
+    let entity_guid = simple::parse_guid(PropertyType::NotebookManagementEntityGuid, object)
+        .ok()
+        .flatten()
         .unwrap_or_else(warn_missing_guid);
     let page_spaces =
         ObjectSpaceReference::parse_vec(PropertyType::ChildGraphSpaceElementNodes, object)?
