@@ -3,10 +3,10 @@ use crate::fsshttpb::data::exguid::ExGuid;
 use crate::one::property::color::Color;
 use crate::one::property::layout_alignment::LayoutAlignment;
 use crate::one::property::outline_indent_distance::OutlineIndentDistance;
-use crate::one::property_set::{table_cell_node, table_node, table_row_node};
+use crate::one::property_set::{PropertySetId, table_cell_node, table_node, table_row_node};
 use crate::onenote::ParserContext;
 use crate::onenote::note_tag::{NoteTag, parse_note_tags};
-use crate::onenote::outline::{OutlineElement, parse_outline_element};
+use crate::onenote::outline::{OutlineElement, parse_outline_element, parse_outline_group};
 use crate::onestore::ObjectSpace;
 
 /// A table.
@@ -230,7 +230,7 @@ fn parse_cell(
     let contents = data
         .contents
         .into_iter()
-        .map(|element_id| parse_outline_element(element_id, space, ctx))
+        .map(|element_id| parse_cell_element(element_id, space, ctx))
         .collect::<Result<_>>()?;
 
     let cell = TableCell {
@@ -241,4 +241,30 @@ fn parse_cell(
     };
 
     Ok(cell)
+}
+
+/// A cell usually holds outline elements, but it can also hold an outline group (lines indented
+/// deeper than the ones after them). Keep the group as the children of an empty outline element
+/// instead of failing the whole page.
+fn parse_cell_element(
+    element_id: ExGuid,
+    space: &(impl ObjectSpace + ?Sized),
+    ctx: &mut ParserContext,
+) -> Result<OutlineElement> {
+    let is_group = space
+        .get_object(element_id)
+        .is_some_and(|object| object.id() == PropertySetId::OutlineGroup.as_jcid());
+    if !is_group {
+        return parse_outline_element(element_id, space, ctx);
+    }
+
+    let group = parse_outline_group(element_id, space, ctx)?;
+
+    Ok(OutlineElement {
+        contents: vec![],
+        list_contents: vec![],
+        list_spacing: None,
+        child_level: group.child_level,
+        children: group.outlines,
+    })
 }

@@ -325,7 +325,7 @@ fn parse_outline_item(
     Ok(item)
 }
 
-fn parse_outline_group(
+pub(crate) fn parse_outline_group(
     group_id: ExGuid,
     space: &(impl ObjectSpace + ?Sized),
     ctx: &mut ParserContext,
