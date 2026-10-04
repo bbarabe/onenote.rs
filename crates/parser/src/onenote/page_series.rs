@@ -34,16 +34,18 @@ pub(crate) fn parse_page_series(
         .ok_or_else(|| ErrorKind::MalformedOneNoteData("page series object is missing".into()))?;
     let data = page_series_node::parse(object)?;
 
-    let pages = data
-        .page_spaces
-        .into_iter()
-        .map(|page_space_id| {
-            store
-                .object_space(page_space_id)
-                .ok_or_else(|| ErrorKind::MalformedOneNoteData("page space is missing".into()))
-        })
-        .map(|page_space| parse_page(page_space?, ctx))
-        .collect::<Result<_>>()?;
+    // A page series can list a page whose object space the file does not contain (seen in a
+    // section saved by OneNote through OneDrive). Skip that page with a warning instead of
+    // failing the whole section: the other pages are intact.
+    let mut pages = Vec::with_capacity(data.page_spaces.len());
+    for page_space_id in data.page_spaces {
+        let Some(page_space) = store.object_space(page_space_id) else {
+            warn!(ctx, "page space {page_space_id:?} is missing, page skipped");
+            continue;
+        };
+
+        pages.push(parse_page(page_space, ctx)?);
+    }
 
     Ok(PageSeries { pages })
 }
