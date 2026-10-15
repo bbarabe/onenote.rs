@@ -9,6 +9,7 @@ use crate::onenote::outline::{Outline, parse_outline};
 use crate::onenote::page_content::{PageContent, parse_page_content};
 use crate::onestore::ObjectSpace;
 use time::macros::utc_datetime;
+use uuid::Uuid;
 
 /// A page.
 ///
@@ -28,9 +29,18 @@ pub struct Page {
     height: Option<f32>,
     contents: Vec<PageContent>,
     ink_recognition: Option<InkRecognition>,
+    pub(crate) space_id: Option<(Uuid, u32)>,
 }
 
 impl Page {
+    /// The id of the page's object space: an extended GUID (a GUID and a number).
+    ///
+    /// OneNote's REST API (Microsoft Graph) builds its page ids from it:
+    /// `<n>-<the GUID as 32 hex digits>!<the number>-<the section's id>`.
+    pub fn space_id(&self) -> Option<(Uuid, u32)> {
+        self.space_id
+    }
+
     /// The page's GUID. May be referenced by internal links.
     /// Ref: [ONESTORE 2.2.58](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-one/34ea5601-f060-4a69-b5f9-5843a1f14098)
     pub fn link_target_id(&self) -> &str {
@@ -246,6 +256,7 @@ pub(crate) fn parse_page(
         height: data.page_height,
         contents,
         ink_recognition,
+        space_id: None,
     })
 }
 

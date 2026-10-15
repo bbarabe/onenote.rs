@@ -181,7 +181,7 @@ pub mod section {
 pub mod page {
     pub use crate::onenote::page::{Page, Title};
     pub use crate::onenote::page_content::PageContent;
-    pub use crate::onenote::page_series::PageSeries;
+    pub use crate::onenote::page_series::{PageSeries, UnavailablePage};
 }
 
 /// The data that represents the contents of a OneNote section.
