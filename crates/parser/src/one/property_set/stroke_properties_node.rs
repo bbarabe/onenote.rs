@@ -1,4 +1,4 @@
-use crate::errors::{ErrorKind, Result};
+use crate::errors::Result;
 use crate::one::property::ink_dimensions::InkDimension;
 use crate::one::property::{PropertyType, simple};
 use crate::one::property_set::{PropertySetId, assert_property_set};
@@ -29,12 +29,12 @@ pub(crate) fn parse(object: &Object) -> Result<Data> {
     let pen_tip = simple::parse_u8(PropertyType::InkPenTip, object)?;
     let raster_operation = simple::parse_u8(PropertyType::InkRasterOperation, object)?;
     let transparency = simple::parse_u8(PropertyType::InkTransparency, object)?;
-    let ink_width = simple::parse_f32(PropertyType::InkHeight, object)?.ok_or_else(|| {
-        ErrorKind::MalformedOneNoteFileData("ink stroke properties has no height".into())
-    })?;
-    let ink_height = simple::parse_f32(PropertyType::InkWidth, object)?.ok_or_else(|| {
-        ErrorKind::MalformedOneNoteFileData("ink stroke properties has no width".into())
-    })?;
+    // A stroke can lack one or both pen sizes (seen in a section that went through several
+    // OneNote versions). Use the other size, else a default, instead of failing the whole section.
+    let height = simple::parse_f32(PropertyType::InkHeight, object)?;
+    let width = simple::parse_f32(PropertyType::InkWidth, object)?;
+    let ink_width = height.or(width).unwrap_or_else(|| warn_missing_size("height"));
+    let ink_height = width.or(height).unwrap_or_else(|| warn_missing_size("width"));
     let color = simple::parse_u32(PropertyType::InkColor, object)?;
     let dimensions = InkDimension::parse(PropertyType::InkDimensions, object)?;
 
@@ -50,4 +50,14 @@ pub(crate) fn parse(object: &Object) -> Result<Data> {
         color,
         dimensions,
     })
+}
+
+const DEFAULT_PEN_SIZE: f32 = 1.0;
+
+// TODO: thread a `ParserContext` through `parse` and switch this to the
+// crate-level `warn!(ctx, ...)` macro.
+#[allow(clippy::disallowed_macros)]
+fn warn_missing_size(which: &str) -> f32 {
+    log::warn!("ink stroke properties has no pen {which}, using {DEFAULT_PEN_SIZE}");
+    DEFAULT_PEN_SIZE
 }
